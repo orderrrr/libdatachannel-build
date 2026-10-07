@@ -60,6 +60,7 @@ set(CMAKE_CXX_COMPILER "$work/tools/c++")
 set(CMAKE_AR "$work/tools/ar")
 set(CMAKE_RANLIB "$work/tools/ranlib")
 set(CMAKE_OSX_SYSROOT "")
+set(CMAKE_INSTALL_NAME_TOOL "$(command -v true)")
 EOF
 
 cmake -S src -B "$work/cmake" \
