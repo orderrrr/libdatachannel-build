@@ -19,8 +19,8 @@ OpenSSL never loads an `openssl.cnf` (`no-autoload-config`).
 
 - Linux and macOS: `OPENSSLDIR=/etc/ssl`, so `/etc/ssl/cert.pem` and the hashed `/etc/ssl/certs`
   directory. Tested on macOS 14+, Ubuntu 22.04, Debian 12, Fedora 41, Arch and openSUSE Tumbleweed.
-- Windows: OpenSSL (up to 4.1) does not use the system store by default, so the application must
-  set `SSL_CERT_FILE` to a PEM of trusted roots before connecting.
+- Windows: libdatachannel (v0.24.6 and upstream master) disables WebSocket certificate
+  verification on Windows, so `wss://` there is encrypted but not authenticated.
 
 Upstream code is unmodified. Licenses: libdatachannel and libjuice MPL-2.0, usrsctp BSD-3-Clause,
 plog MIT, OpenSSL Apache-2.0.
