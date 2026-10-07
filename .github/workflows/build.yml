@@ -11,7 +11,36 @@ env:
   LIBDATACHANNEL_REF: v0.24.6
 
 jobs:
+  # Every target is cross-compiled with Zig on Linux; tests then run natively per OS.
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux-x86_64, macos-aarch64, windows-x86_64]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Fetch libdatachannel
+        run: |
+          git clone --depth 1 --branch "$LIBDATACHANNEL_REF" \
+            https://github.com/paullouisageneau/libdatachannel.git src
+          git -C src submodule update --init --depth 1 deps/libjuice deps/usrsctp deps/plog
+
+      - name: Build
+        run: mkdir -p build && ./build.sh "${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libdatachannel-${{ matrix.target }}
+          path: dist/*.tar.gz
+
+  test:
+    needs: build
     strategy:
       fail-fast: false
       matrix:
@@ -29,37 +58,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch libdatachannel
-        run: |
-          git clone --depth 1 --branch "$LIBDATACHANNEL_REF" \
-            https://github.com/paullouisageneau/libdatachannel.git src
-          git -C src submodule update --init --depth 1 deps/libjuice deps/usrsctp deps/plog
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
 
-      - name: Install OpenSSL (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev
-
-      - name: Install OpenSSL (macOS)
-        if: runner.os == 'macOS'
-        run: echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
-
-      - name: Install OpenSSL (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          "$VCPKG_INSTALLATION_ROOT/vcpkg" install openssl:x64-windows-static
-          echo "OPENSSL_ROOT_DIR=$VCPKG_INSTALLATION_ROOT/installed/x64-windows-static" >> "$GITHUB_ENV"
-
-      - name: Build
-        run: ./build.sh "${{ matrix.target }}"
-
-      - uses: actions/upload-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: libdatachannel-${{ matrix.target }}
-          path: dist/*.tar.gz
+          path: dist
+
+      - name: Verified wss:// connections
+        run: |
+          mkdir -p build
+          tar -xzf "dist/libdatachannel-${{ matrix.target }}.tar.gz" -C dist
+          ./test.sh "${{ matrix.target }}"
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs: [build, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -68,6 +84,6 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "libdatachannel $LIBDATACHANNEL_REF prebuilt shared libraries."
+      - run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "libdatachannel $LIBDATACHANNEL_REF static archives (OpenSSL 3.5.9) built with Zig 0.16.0."
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,12 +1,26 @@
 # libdatachannel-build
 
-Prebuilt [libdatachannel](https://github.com/paullouisageneau/libdatachannel) shared libraries
+Prebuilt static [libdatachannel](https://github.com/paullouisageneau/libdatachannel) archives
 (data channels + WebSocket, no media) for linux-x86_64, macos-aarch64 and windows-x86_64.
-OpenSSL, libjuice, usrsctp and plog are linked in statically; only the C API (`rtc/rtc.h`) is exported.
+Everything, including OpenSSL 3.5.9, is cross-compiled with `zig cc`/`zig c++` (Zig 0.16.0), so the
+archives link into Zig executables that use Zig's libc++. Link them with `-DRTC_STATIC`.
 
-Push a `v*` tag to publish a release. The upstream version is `LIBDATACHANNEL_REF` in the workflow.
+`./build.sh <target>` builds `dist/libdatachannel-<target>.tar.gz`; `./test.sh <target>` links a
+small client and checks verified `wss://` connections natively. Push a `v*` tag to publish a release.
 
-Archive layout: `include/rtc/`, `lib/` (`.so`/`.dylib`/import `.lib`), `bin/` (Windows `.dll`), `licenses/`.
+Archive layout: `include/rtc/`, `lib/` (`libdatachannel.a`, `libjuice.a`, `libusrsctp.a`,
+`libssl.a`, `libcrypto.a`), `licenses/`, `VERSION`. Windows also needs
+`ws2_32 iphlpapi bcrypt crypt32 user32 advapi32`.
+
+## Certificate verification
+
+libdatachannel verifies WebSocket servers against OpenSSL's default verify paths.
+OpenSSL never loads an `openssl.cnf` (`no-autoload-config`).
+
+- Linux and macOS: `OPENSSLDIR=/etc/ssl`, so `/etc/ssl/cert.pem` and the hashed `/etc/ssl/certs`
+  directory. Tested on macOS 14+, Ubuntu 22.04, Debian 12, Fedora 41, Arch and openSUSE Tumbleweed.
+- Windows: OpenSSL (up to 4.1) does not use the system store by default, so the application must
+  set `SSL_CERT_FILE` to a PEM of trusted roots before connecting.
 
 Upstream code is unmodified. Licenses: libdatachannel and libjuice MPL-2.0, usrsctp BSD-3-Clause,
 plog MIT, OpenSSL Apache-2.0.
