@@ -11,7 +11,7 @@ pkg="$root/dist/$name"
 platform=()
 case "$target" in
   macos-aarch64) platform=(-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0) ;;
-  windows-x86_64) platform=(-A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DOPENSSL_MSVC_STATIC_RT=TRUE) ;;
+  windows-x86_64) platform=(-A x64 -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DOPENSSL_MSVC_STATIC_RT=TRUE) ;;
 esac
 
 cmake -S src -B build "${platform[@]}" \
@@ -56,15 +56,15 @@ case "$target" in
 esac
 echo "$LIBDATACHANNEL_REF $(git -C src rev-parse HEAD)" > "$pkg/VERSION"
 
-# The shared library must not need OpenSSL at runtime.
+# The shared library must not need OpenSSL (or the MSVC runtime) at runtime.
 case "$target" in
   linux-*) deps=$(ldd "$pkg/lib/libdatachannel.so"); readelf -d "$pkg/lib/libdatachannel.so" | grep SONAME ;;
   macos-*) deps=$(otool -L "$pkg/lib/libdatachannel.dylib") ;;
   windows-*) deps=$(objdump -p "$pkg/bin/datachannel.dll" | grep 'DLL Name') ;;
 esac
 echo "$deps"
-if grep -Eiq 'libssl|libcrypto' <<<"$deps"; then
-  echo "OpenSSL is dynamically linked" >&2
+if grep -Eiq 'libssl|libcrypto|msvcp|vcruntime' <<<"$deps"; then
+  echo "OpenSSL or the MSVC runtime is dynamically linked" >&2
   exit 1
 fi
 
